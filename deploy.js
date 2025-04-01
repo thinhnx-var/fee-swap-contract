@@ -3,11 +3,11 @@ const { ethers } = require("hardhat");
 async function main() {
   try {
     const [deployer] = await ethers.getSigners();
-    const _router = process.env.ROUTER_ADDRESS;
-    const _feePercentage = process.env.FEE_PERCENTAGE;
+    const _pancakeRouter = process.env.ROUTER_ADDRESS;
+    const _initialFeeBasisPoints = process.env.FEE_PERCENTAGE;
     console.log("Deploying contracts with the account:", deployer.address);
     const FeeMdw = await ethers.getContractFactory("FeeMiddleware");
-    const ct = await FeeMdw.deploy(_router, _feePercentage);
+    const ct = await FeeMdw.deploy(_pancakeRouter, _initialFeeBasisPoints);
     await ct.waitForDeployment();
     console.log("FeeMiddleware deployed to:", ct.target);
 
