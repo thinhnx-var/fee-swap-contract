@@ -13,16 +13,18 @@ module.exports = {
 		],
 	},
 	settings: {
-		evmVersion: "istanbul",
+		evmVersion: "paris",
 	},
 	networks: {
 		bsctest: {
 			url: "https://bsc-testnet.bnbchain.org",
-			// url: "https://rpc-testnet.0g.ai",
+			// url: "https://bsc-testnet-dataseed.bnbchain.org",
 			chainId: 97,
 			accounts: [process.env.PRVKEY],
-			gas: 50000000000,
+			// Total Cost (in BNB) = gas * gasPrice / 10^18.
+			gas: 500000000000,
       		gasPrice: 3000000000,
 		},
 	},
 };
+
