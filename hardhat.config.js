@@ -23,8 +23,8 @@ module.exports = {
 			chainId: 97,
 			accounts: [process.env.PRVKEY],
 			// Total Cost (in BNB) = gas * gasPrice / 10^18.
-			gas: 500000,
-      		gasPrice: 5000000000,
+			gas: 50000000,
+      		gasPrice: 3000000000,
 		},
 	},
 };

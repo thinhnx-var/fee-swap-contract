@@ -11,13 +11,11 @@ async function main() {
     await ct.waitForDeployment();
     console.log("FeeMiddleware deployed to:", ct.target);
 
-        // Deploy ERC-20 Token
-        // const ERC20Token = await ethers.getContractFactory("VMTS");
-        // const token = await ERC20Token.deploy(deployer.address, 1000000);
-        // await token.waitForDeployment();
-        // console.log("VMTS deployed to:", await token.getAddress());
-
-
+    // Deploy ERC-20 Token
+    // const ERC20Token = await ethers.getContractFactory("VMTS");
+    // const token = await ERC20Token.deploy(deployer.address, 1000000);
+    // await token.waitForDeployment();
+    // console.log("VMTS deployed to:", await token.getAddress());
   } catch (error) {
     console.error("Error deploying contract:", error);
     process.exit(1);
