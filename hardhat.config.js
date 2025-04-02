@@ -1,4 +1,5 @@
 require("@nomicfoundation/hardhat-toolbox");
+require("@nomicfoundation/hardhat-verify");
 
 /** @type import('hardhat/config').HardhatUserConfig */
 
@@ -27,5 +28,11 @@ module.exports = {
       		gasPrice: 3000000000,
 		},
 	},
+	etherscan: {
+        apiKey: {
+            bscTestnet: process.env.BSC_API_KEY // Replace with your BscScan API key
+        }
+    },
 };
 
+//EYPMANQE52732KQSIVN6CBH9BGNGSVRWNT
