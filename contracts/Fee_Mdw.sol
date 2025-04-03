@@ -20,7 +20,6 @@ interface IPancakeRouter02 {
         uint deadline
     ) external returns (uint[] memory amounts);
 
-    function WBNB() external pure returns (address);
 }
 
 contract FeeMiddleware is Ownable {
@@ -34,7 +33,6 @@ contract FeeMiddleware is Ownable {
 
     constructor(address _pancakeRouter, uint _initialFeeBasisPoints) Ownable(msg.sender){
         require(_pancakeRouter != address(0), "Invalid router address");
-
         pancakeRouter = IPancakeRouter02(_pancakeRouter);
         feeBasisPoints = _initialFeeBasisPoints;
     }
@@ -62,7 +60,7 @@ contract FeeMiddleware is Ownable {
 
         // Define swap path: WBNB -> Token
         address[] memory path = new address[](2);
-        path[0] = pancakeRouter.WBNB();
+        path[0] = address(0);
         path[1] = token;
 
         // Perform swap
@@ -89,7 +87,6 @@ contract FeeMiddleware is Ownable {
     ) external {
         require(amountIn > 0, "No tokens sent");
         require(token != address(0), "Invalid token address");
-        require(feeBasisPoints < BASIS_POINTS, "Fee too high");  // Add this check to be consistent with swapBNBToToken
 
         // Check token balance of sender before transfer
         uint256 beforeBalance = IERC20(token).balanceOf(address(this));
@@ -109,7 +106,7 @@ contract FeeMiddleware is Ownable {
         // Define swap path: Token -> WBNB
         address[] memory path = new address[](2);
         path[0] = token;
-        path[1] = pancakeRouter.WBNB();
+        path[1] = address(0);
 
         // Perform swap
         uint[] memory amounts = pancakeRouter.swapExactTokensForETH(
