@@ -68,9 +68,13 @@ contract VarMetaSwapper {
         });
 
         // Execute swap
-        uint256 amountOut = pancakeRouter.exactInputSingle{value: amountInAfterFee}(params);
-
-        emit SwapExecuted(msg.sender, amountInAfterFee, amountOut, true, tokenOut);
+        try pancakeRouter.exactInputSingle{value: amountInAfterFee}(params) returns (uint256 amountOut) {
+            emit SwapExecuted(msg.sender, amountInAfterFee, amountOut, true, tokenOut);
+        } catch Error(string memory reason) {
+            revert(reason); // Revert with the error reason provided by the router
+        } catch {
+            revert("Swap failed due to an unknown error"); // Revert with a generic error message
+        }
     }
 
     // Function to swap any token to BNB (collect BNB fee after swap)
