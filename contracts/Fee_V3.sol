@@ -12,12 +12,13 @@ interface IWBNB is IERC20 {
 
 // Importing PancakeSwap V3 Router interface from official library
 import "@pancakeswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import '@pancakeswap/v3-periphery/contracts/libraries/TransferHelper.sol';
 
 contract VarMetaSwapper {
     address public owner;
     address public constant WBNB = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd; // WBNB address on BSC testnet
     address public PANCAKE_V3_ROUTER; // PancakeSwap V3 Router on BSC testnet
-    uint24 public constant FEE_TIER = 10000; // 0.3% fee tier (common for V3 pools)
+    uint24 public constant FEE_TIER = 10000; // 1% fee tier (common for V3 pools)
 
     uint256 public platformFeeBasisPoints; // Fee in basis points (e.g., 100 = 1%)
 
@@ -45,6 +46,10 @@ contract VarMetaSwapper {
         // require(tokenOut != address(0) && tokenOut != WBNB, "Invalid token address");
         require(block.timestamp <= deadline, "Transaction deadline exceeded");
 
+        TransferHelper.safeTransferFrom(WBNB, msg.sender, address(this), msg.value);
+        // Approve router to spend WBNB
+        TransferHelper.safeApprove(WBNB, address(PANCAKE_V3_ROUTER), msg.value);
+
         // Calculate and collect BNB fee before swap
         uint256 fee = calculateFee(msg.value);
         require(msg.value > fee, "Insufficient BNB for fee");
@@ -57,7 +62,7 @@ contract VarMetaSwapper {
 
         // Prepare swap parameters
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-            tokenIn: address(0), // WBNB for BNB
+            tokenIn: WBNB, // WBNB for BNB
             tokenOut: tokenOut, // User-specified token (token A)
             fee: FEE_TIER, // Fee tier for the pool
             recipient: msg.sender, // Recipient of tokens
@@ -68,7 +73,7 @@ contract VarMetaSwapper {
         });
 
         // Execute swap
-        try pancakeRouter.exactInputSingle{value: amountInAfterFee}(params) returns (uint256 amountOut) {
+        try pancakeRouter.exactInputSingle(params) returns (uint256 amountOut) {
             emit SwapExecuted(msg.sender, amountInAfterFee, amountOut, true, tokenOut);
         } catch Error(string memory reason) {
             revert(reason); // Revert with the error reason provided by the router

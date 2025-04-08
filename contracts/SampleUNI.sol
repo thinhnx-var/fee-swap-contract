@@ -19,8 +19,8 @@ contract TempUni {
 
     // This example swaps DAI/WETH9 for single path swaps and DAI/USDC/WETH9 for multi path swaps.
 
-    address public constant DAI = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;
-    address public constant WETH9 = 0x8d008B313C1d6C7fE2982F62d32Da7507cF43551;
+    address public constant DAI = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd; // WBNB
+    address public constant WETH9 = 0x8d008B313C1d6C7fE2982F62d32Da7507cF43551; // CAKE2
     address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
     // For this example, we will set the pool fee to 0.3%.
