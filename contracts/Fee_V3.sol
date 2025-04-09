@@ -16,6 +16,8 @@ contract VarMetaSwapper {
     address public owner;
     // Native token will be convert to WBNB before executing swap
     address public constant WBNB = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd; // WBNB address on BSC testnet
+    address public constant USDT = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;
+    address public constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address public PANCAKE_V3_ROUTER; // PancakeSwap V3 Router on BSC testnet
     address public PAN_V3_FACTORY; // PancakeSwap V3 Factory on BSC testnet
     uint24 public constant FEE_TIER = 10000; // 1% fee tier (common for V3 pools)
@@ -135,12 +137,33 @@ contract VarMetaSwapper {
         emit SwapExecuted(msg.sender, msg.value, 0, true, WBNB);
     }
 
+    // Detect if tokenIn is WBNB, USDT, or USDC
+    function isTokenInWBNB(address tokenIn) internal pure returns (bool) {
+        return tokenIn == WBNB;
+    }
+    function isTokenInUSDT(address tokenIn) internal pure returns (bool) {
+        return tokenIn == USDT;
+    }
+    function isTokenInUSDC(address tokenIn) internal pure returns (bool) {
+        return tokenIn == USDC;
+    }
+    /*
+        @dev Mode List:
+        - 0: WBNB to Token
+        - 1: Token to WBNB
+        - 2: USDC to Token
+        - 3: Token to USDC
+        - 4: USDT to Token
+        - 5: Token to USDT
+        - 6: Token to Token
+    */
     function swapTokenToToken(
         address tokenIn,
         address tokenOut,
         uint256 amountIn,
         uint256 amountOutMinimum,
-        uint256 deadline
+        uint256 deadline,
+        uint8 mode
     ) external {
         require(tokenIn != address(0) && tokenOut != address(0), "Invalid token address");
         require(amountIn > 0, "Insufficient token amount");
@@ -152,19 +175,17 @@ contract VarMetaSwapper {
         // Approve router to spend tokens
         require(IERC20(tokenIn).approve(PANCAKE_V3_ROUTER, amountIn), "Token approval failed");
         ISwapRouter.ExactInputSingleParams memory params;
-        // If user swap WBNB to token, collect fee before swap
-        if (tokenIn == WBNB) {
+
+        // check mode
+        if (mode == 0 || mode == 2 || mode == 4) {
             uint256 fee = calculateFee(amountIn);
             uint256 amountInAfterFee = amountIn - fee;
-
-            // Transfer BNB fee to owner
-            (bool sent, ) = owner.call{value: fee}("");
-            require(sent, "Failed to transfer amount fee to owner");
+            // Transfer fee to owner
+            bool sent = IERC20(tokenIn).transfer(owner, fee);
+            require(sent, "Fee transfer failed");
             emit FeeCollected(msg.sender, fee, tokenIn);
-
             // Update amountIn for swap
             amountIn = amountInAfterFee;
-
             // get fee for pairs
             uint24 feeTier = getFeeTier(tokenIn, tokenOut);
             // Prepare swap parameters
@@ -172,30 +193,46 @@ contract VarMetaSwapper {
                 tokenIn: tokenIn, // User-specified token (token A)
                 tokenOut: tokenOut, // User-specified token (token B)
                 fee: feeTier, // Fee tier for the pool
-                recipient: msg.sender, // Recipient of tokens
+                recipient: address(this), // Contract receives WBNB/USDC/USDT temporarily
                 deadline: deadline, // Transaction deadline
                 amountIn: amountIn, // Amount of tokens to swap
                 amountOutMinimum: amountOutMinimum, // Minimum tokens to receive
                 sqrtPriceLimitX96: 0 // No price limit
             });
-
             // Execute swap (tokenOut will be sent to user)
             uint256 amountOut = pancakeRouter.exactInputSingle(params);
-
             emit SwapExecuted(msg.sender, amountIn, amountOut, false, tokenOut);
-        } else {
+        }
+
+        if (mode == 1 || mode == 3 || mode == 5) {
+            // get fee for pairs
+            uint24 feeTier = getFeeTier(tokenIn, tokenOut);
             // Prepare swap parameters
             params = ISwapRouter.ExactInputSingleParams({
                 tokenIn: tokenIn, // User-specified token (token A)
                 tokenOut: tokenOut, // User-specified token (token B)
-                fee: FEE_TIER, // Fee tier for the pool
-                recipient: msg.sender, // Recipient of tokens
+                fee: feeTier, // Fee tier for the pool
+                recipient: address(this), // Contract receives WBNB temporarily
                 deadline: deadline, // Transaction deadline
                 amountIn: amountIn, // Amount of tokens to swap
                 amountOutMinimum: amountOutMinimum, // Minimum tokens to receive
                 sqrtPriceLimitX96: 0 // No price limit
             });
+            // Execute swap (tokenOut will be sent to user)
+            uint256 amountOut = pancakeRouter.exactInputSingle(params);
+            emit SwapExecuted(msg.sender, amountIn, amountOut, false, tokenOut);
+            // calculate fee after swap
+            uint256 fee = calculateFee(amountOut);
+            uint256 amountOutForUser = amountOut - fee;
+            // Transfer fee to owner
+            bool sent = IERC20(tokenOut).transfer(owner, fee);
+            require(sent, "Fee transfer failed");
+            emit FeeCollected(msg.sender, fee, tokenOut);
+            // Transfer swapped token for user
+            bool sent2 = IERC20(tokenOut).transfer(msg.sender, amountOutForUser);
+            require(sent2, "Token transfer to user failed");
         }
+        
     }
 
     // get pool pair
