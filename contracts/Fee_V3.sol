@@ -5,6 +5,10 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@pancakeswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import '@pancakeswap/v3-periphery/contracts/libraries/TransferHelper.sol';
 import '@pancakeswap/v3-core/contracts/interfaces/IPancakeV3Factory.sol';
+import '@pancakeswap/v3-core/contracts/interfaces/IPancakeV3Pool.sol';
+
+// Import IQuoterV2 interface
+import "@pancakeswap/v3-periphery/contracts/interfaces/IQuoterV2.sol";
 
 // Importing IWBNB interface manually (specific to WBNB, not in standard libraries)
 interface IWBNB is IERC20 {
@@ -26,6 +30,8 @@ contract VarMetaSwapper {
 
     ISwapRouter public pancakeRouter;
     IPancakeV3Factory public pancakeFactory;
+    // IQuoterV2 public quoter;
+    // address public QUOTE_V2;
 
     event SwapExecuted(address indexed user, uint256 amountIn, uint256 amountOut, bool isBNBToToken, address tokenAddress);
     event FeeCollected(address indexed user, uint256 feeAmount, address tokenAddress);
@@ -44,10 +50,12 @@ contract VarMetaSwapper {
         // hardcode factory address
         PAN_V3_FACTORY = 0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865;
         pancakeFactory = IPancakeV3Factory(PAN_V3_FACTORY);
-        
+        // QUOTE_V2 = 0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997;
+        // quoter = IQuoterV2(QUOTE_V2); // QuoterV2 address on BSC testnet        
     }
 
-    // Function to swap BNB to any token (collect BNB fee before swap)
+    // @dev: Ask user to approve WBNB before swap
+    // @dev: This function is used to swap BNB to any token (collect fee before swap)
     // Because we need user to approve WBNB before swap, then dont need to wrap BNB anymore.
     function swapBNB2Token(uint256 amountIn, address tokenOut, uint256 amountOutMinimum, uint256 deadline) external payable {
         require(block.timestamp <= deadline, "Transaction deadline exceeded");
@@ -90,7 +98,7 @@ contract VarMetaSwapper {
         }
     }
 
-    // Function to swap any token to BNB (collect BNB fee after swap)
+    // @dev: This function is used to swap any token to BNB (collect fee after swap)
     function swapToken2BNB(address tokenIn, uint256 amountIn, uint256 amountOutMinimum, uint256 deadline) external {
         // require(tokenIn != address(0) && tokenIn != WBNB, "Invalid token address");
         require(amountIn > 0, "Insufficient token amount");
@@ -131,6 +139,7 @@ contract VarMetaSwapper {
         require(sent, "lol");
         emit SwapExecuted(msg.sender, amountIn, amountOutForUser, false, tokenIn);
     }
+    // @dev: This function is used to test wrapping BNB to WBNB
     // Wrap BNB to WBNB (no fee)
     function wrapBNB() external payable{
         IWBNB(WBNB).deposit{value: msg.value}();
@@ -264,6 +273,56 @@ contract VarMetaSwapper {
         return 0; // No pool found
     }
 
+    // // estimate swapping result
+    // function estimateSwap(
+    //     address tokenIn,
+    //     address tokenOut,
+    //     uint256 amountIn,
+    //     uint24 fee
+    // ) external returns (uint256 amountOut, uint256 priceImpactBasisPoints) {
+    //     require(tokenIn != address(0) && tokenOut != address(0), "Invalid token address");
+    //     require(amountIn > 0, "Invalid amount in");
+    //     require(fee > 0, "Invalid fee tier");
+
+    //     // Call QuoterV2 to get the estimated amount out and price data
+    //     try quoter.quoteExactInputSingle(
+    //         IQuoterV2.QuoteExactInputSingleParams({
+    //             tokenIn: tokenIn,
+    //             tokenOut: tokenOut,
+    //             amountIn: amountIn,
+    //             fee: fee,
+    //             sqrtPriceLimitX96: 0
+    //         })
+    //     ) returns (
+    //         uint256 _amountOut,
+    //         uint160 sqrtPriceX96After,
+    //         uint32 initializedTicksCrossed,
+    //         uint256 gasEstimate
+    //     ) {
+    //         amountOut = _amountOut;
+
+    //         // Get the current pool price (sqrtPriceX96) from the pool
+    //         address pool = pancakeFactory.getPool(tokenIn, tokenOut, fee);
+    //         require(pool != address(0), "Pool does not exist");
+
+    //         // Assume IPancakeV3Pool interface for simplicity
+    //         (uint160 sqrtPriceX96, , , , , , ) = IPancakeV3Pool(pool).slot0();
+
+    //         // Calculate price impact
+    //         if (sqrtPriceX96 > 0) {
+    //             uint256 priceDiff = sqrtPriceX96 > sqrtPriceX96After
+    //                 ? sqrtPriceX96 - sqrtPriceX96After
+    //                 : sqrtPriceX96After - sqrtPriceX96;
+    //             priceImpactBasisPoints = (priceDiff * 10000) / sqrtPriceX96; // Basis points (1% = 100)
+    //         } else {
+    //             priceImpactBasisPoints = 0; // Avoid division by zero
+    //         }
+
+    //         return (amountOut, priceImpactBasisPoints);
+    //     } catch {
+    //         revert("Quote failed");
+    //     }
+    // }
     // Calculate BNB fee based on amount
     function calculateFee(uint256 amount) private view returns (uint256) {
         return (amount * platformFeeBasisPoints) / 10000; // Convert basis points to percentage
