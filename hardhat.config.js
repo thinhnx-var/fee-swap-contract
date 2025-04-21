@@ -28,8 +28,14 @@ module.exports = {
 			accounts: [process.env.PRVKEY],
 			// Total Cost (in BNB) = gas * gasPrice / 10^18.
 			gas: 21000,
-      		gasPrice: 3000000000,
+      		gasPrice: 1000000000,
 		},
+		mainnet: {
+			url: "https://bsc-dataseed.binance.org/",
+			chainId: 56,
+			gasPrice: 1000000000,
+			accounts: [process.env.PRVKEY],
+		  },
 		local: {
 			url: "http://127.0.0.1:8545",
 			// url: "https://bsc-testnet-dataseed.bnbchain.org",
@@ -43,7 +49,8 @@ module.exports = {
 	},
 	etherscan: {
         apiKey: {
-            bscTestnet: process.env.BSC_API_KEY // Replace with your BscScan API key
+            bscTestnet: process.env.BSC_API_KEY, // Replace with your BscScan API key
+			bsc: process.env.BSC_MAIN_KEY, // Replace with your BscScan API key
         }
     },
 };

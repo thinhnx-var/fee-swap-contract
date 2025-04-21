@@ -156,6 +156,7 @@ contract VarMetaSwapper {
         - 4: USDT to Token
         - 5: Token to USDT
         - 6: Token to Token
+        @dev we added these modes to make it easier for futher fee calculating
     */
     function swapTokenToToken(
         address tokenIn,
