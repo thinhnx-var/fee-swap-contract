@@ -140,7 +140,7 @@ contract VarMetaSwapper {
         }
     }
 
-// Function to swap any token to BNB (collect BNB fee after swap)
+    // Function to swap any token to BNB (collect BNB fee after swap)
     function swapToken2BNB(address tokenIn, uint256 amountIn, uint256 amountOutMinimum, uint256 deadline) external {
         // require(tokenIn != address(0) && tokenIn != WBNB, "Invalid token address");
         require(amountIn > 0, "Insufficient token amount");
@@ -178,6 +178,86 @@ contract VarMetaSwapper {
             revert(reason); // router errors
         } catch {
             revert("Swap failed due to an unknown error");
+        }
+    }
+
+    // swap U2B before buying target token. After this action, contract will have WBNB
+    function swapU2WBNB(uint8 mode, uint256 amountIn, uint256 amountOutMinimum, uint256 deadline) internal {
+        require(amountIn > 0, "Insufficient token amount");
+
+        // Transfer tokens from user to this contract
+        address tokenIn;
+        if (mode == 2) {
+            tokenIn = USDC;
+        } else if (mode == 4) {
+            tokenIn = USDT;
+        } else {
+            revert("Invalid mode");
+        }
+        require(IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn), "Token transfer failed");
+        // Approve router to spend tokens
+        require(IERC20(tokenIn).approve(PANCAKE_V3_ROUTER, amountIn), "Token approval failed");
+        uint24 feeTier = getFeeTier(tokenIn, WBNB);
+
+        // Prepare swap parameters
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: tokenIn, // User-specified token (token A)
+            tokenOut: WBNB,
+            fee: feeTier, // Fee tier for the pool
+            recipient: address(this), // Contract receives WBNB temporarily
+            deadline: deadline, // Transaction deadline
+            amountIn: amountIn, // Amount of tokens to swap
+            amountOutMinimum: amountOutMinimum, // Minimum BNB to receive
+            sqrtPriceLimitX96: 0 // No price limit
+        });
+        try pancakeRouter.exactInputSingle(params) returns (uint256 amountOut) {
+            emit SwapExecuted(msg.sender, amountIn, amountOut, false, tokenIn);
+        } catch Error(string memory reason) {
+            revert(reason); // router errors
+        } catch {
+            revert("Swap failed due to an unknown error");
+        }
+    }
+
+    // swap WBNB to USDC/USDT after buying target token. After this action, contract will have USDC/USDT
+    function swapWBNB2U(uint8 mode, uint256 amountIn, uint256 amountOutMinimum, uint256 deadline) internal returns (uint256) {
+        require(block.timestamp <= deadline, "Transaction deadline exceeded");
+        require(amountIn > 0, "Insufficient token amount");
+        address tokenOut;
+        if (mode == 3) {
+            tokenOut = USDC;
+        } else if (mode == 5) {
+            tokenOut = USDT;
+        } else {
+            revert("Invalid mode");
+        }
+        // TransferHelper.safeTransferFrom(WBNB, msg.sender, address(this), amountIn);
+        // Approve router to spend WBNB
+        TransferHelper.safeApprove(WBNB, address(PANCAKE_V3_ROUTER), amountIn);
+
+    
+        // get feeTier for pairs
+        uint24 feeTier = getFeeTier(WBNB, tokenOut);
+        // Prepare swap parameters
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: WBNB, // WBNB for swapping
+            tokenOut: tokenOut, // User-specified token (token A)
+            fee: feeTier, // Fee tier for the pool
+            recipient: address(this), // Recipient of tokens
+            deadline: deadline, // Transaction deadline
+            amountIn: amountIn, // Amount of BNB to swap
+            amountOutMinimum: amountOutMinimum, // Minimum tokens to receive
+            sqrtPriceLimitX96: 0 // No price limit
+        });
+
+        // Execute swap and revert if error
+        try pancakeRouter.exactInputSingle(params) returns (uint256 amountOut) {
+            emit SwapExecuted(msg.sender, amountIn, amountOut, true, tokenOut);
+            return amountOut;
+        } catch Error(string memory reason) {
+            revert(reason); // router errors
+        } catch {
+            revert("Swap failed due to an unknown error"); // unknown problems
         }
     }
 
@@ -224,8 +304,6 @@ contract VarMetaSwapper {
     }
     /*
         @dev Mode List:
-        - 0: WBNB to Token
-        - 1: Token to WBNB
         - 2: USDC to Token
         - 3: Token to USDC
         - 4: USDT to Token
@@ -248,28 +326,30 @@ contract VarMetaSwapper {
         require(block.timestamp <= deadline, "Transaction deadline exceeded");
 
         // Transfer tokens from user to this contract
-        require(IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn), "Token transfer failed");
+        // require(IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn), "Token transfer failed");
 
         // Approve router to spend tokens
-        require(IERC20(tokenIn).approve(PANCAKE_V3_ROUTER, amountIn), "Token approval failed");
+        // require(IERC20(tokenIn).approve(PANCAKE_V3_ROUTER, amountIn), "Token approval failed");
         ISwapRouter.ExactInputSingleParams memory params;
 
         // check mode
-        if (mode == 0 || mode == 2 || mode == 4) {
+        if (mode == 2 || mode == 4) {
             uint256 fee = calculateFee(amountIn);
             uint256 amountInAfterFee = amountIn - fee;
             // Transfer fee to owner
             bool sent = IERC20(tokenIn).transfer(owner, fee);
             require(sent, "Fee transfer failed");
             emit FeeCollected(msg.sender, fee, tokenIn);
+           // Approve USDT for contract, then swap USDC/USDT to WBNB
+            swapU2WBNB(mode, amountInAfterFee, amountOutMinimum, deadline);
             // get fee for pairs
-            uint24 feeTier = getFeeTier(tokenIn, tokenOut);
+            uint24 feeTier = getFeeTier(tokenIn, WBNB);
             // Prepare swap parameters
             params = ISwapRouter.ExactInputSingleParams({
-                tokenIn: tokenIn, // User-specified token (token A)
+                tokenIn: WBNB, // User-specified token (token A)
                 tokenOut: tokenOut, // User-specified token (token B)
                 fee: feeTier, // Fee tier for the pool
-                recipient: msg.sender, // Contract receives WBNB/USDC/USDT temporarily
+                recipient: msg.sender,
                 deadline: deadline, // Transaction deadline
                 amountIn: amountInAfterFee, // Amount of tokens to swap
                 amountOutMinimum: amountOutMinimum, // Minimum tokens to receive
@@ -285,13 +365,14 @@ contract VarMetaSwapper {
             }
         }
 
-        if (mode == 1 || mode == 3 || mode == 5) {
+        // selling token to USDC/USDT. First sell to WBWB then swap to USDT/USDC
+        if ( mode == 3 || mode == 5) {
             // get fee for pairs
             uint24 feeTier = getFeeTier(tokenIn, tokenOut);
             // Prepare swap parameters
             params = ISwapRouter.ExactInputSingleParams({
                 tokenIn: tokenIn, // User-specified token (token A)
-                tokenOut: tokenOut, // User-specified token (token B)
+                tokenOut: WBNB, // User-specified token (token B)
                 fee: feeTier, // Fee tier for the pool
                 recipient: address(this), // Contract receives WBNB temporarily
                 deadline: deadline, // Transaction deadline
@@ -310,9 +391,13 @@ contract VarMetaSwapper {
             bool sent = IERC20(tokenOut).transfer(owner, fee);
             require(sent, "FTF");
             emit FeeCollected(msg.sender, fee, tokenOut);
-            // Transfer swapped token for user
-            bool sent2 = IERC20(tokenOut).transfer(msg.sender, amountOutForUser);
-            require(sent2, "TRANS_AFTER_SWAP_FAILED");
+
+            // swap WBNB to USDC/USDT
+            uint256 amountOutTarget = swapWBNB2U(mode, amountOutForUser, amountOutMinimum, deadline);
+            bool sentTarget = IERC20(tokenOut).transfer(msg.sender, amountOutTarget);
+            require(sentTarget, "TRANS_AFTER_SWAP_FAILED");
+            emit SwapExecuted(msg.sender, amountIn, amountOutTarget, false, tokenOut);
+
         }
         
     }
