@@ -218,7 +218,7 @@ contract VarMetaSwapper {
     }
 
     // swap WBNB to USDC/USDT after buying target token. After this action, contract will have USDC/USDT
-    function swapWBNB2U(uint8 mode, uint256 amountIn, uint256 amountOutMinimum, uint256 deadline) internal returns (uint256) {
+    function swapBNB2U(uint8 mode, uint256 amountIn, uint256 amountOutMinimum, uint256 deadline) internal returns (uint256) {
         require(block.timestamp <= deadline, "Transaction deadline exceeded");
         require(amountIn > 0, "Insufficient token amount");
         address tokenOut;
@@ -229,11 +229,8 @@ contract VarMetaSwapper {
         } else {
             revert("Invalid mode");
         }
-        // TransferHelper.safeTransferFrom(WBNB, msg.sender, address(this), amountIn);
         // Approve router to spend WBNB
         TransferHelper.safeApprove(WBNB, address(PANCAKE_V3_ROUTER), amountIn);
-
-    
         // get feeTier for pairs
         uint24 feeTier = FEE_TIER_500;
         // Prepare swap parameters
@@ -248,9 +245,11 @@ contract VarMetaSwapper {
             sqrtPriceLimitX96: 0 // No price limit
         });
 
-        // Execute swap and revert if error
+        // Execute swap -> send output token to user and revert if error
         try pancakeRouter.exactInputSingle(params) returns (uint256 amountOut) {
-            emit SwapExecuted(msg.sender, amountIn, amountOut, true, tokenOut);
+            bool sentTarget = IERC20(tokenOut).transfer(msg.sender, amountOut);
+            require(sentTarget, "TRANS_AFTER_SWAP_FAILED");
+            emit SwapExecuted(msg.sender, amountIn, amountOut, false, tokenOut);
             return amountOut;
         } catch Error(string memory reason) {
             revert(reason); // router errors
@@ -383,22 +382,20 @@ contract VarMetaSwapper {
                 sqrtPriceLimitX96: 0 // No price limit
             });
 
-            // Execute swap (tokenOut will be sent to user)
+            // Execute swap (wbnb temp be hold in contract)
             uint256 amountOut = pancakeRouter.exactInputSingle(params);
             emit SwapExecuted(msg.sender, amountIn, amountOut, false, tokenOut);
             // calculate fee after swap
             uint256 fee = calculateFee(amountOut);
-            uint256 amountOutForUser = amountOut - fee;
+            uint256 amountWBNBtoSwapAfterFee = amountOut - fee;
             // Transfer fee to owner
-            bool sent = IERC20(tokenOut).transfer(owner, fee);
+
+            bool sent = IERC20(WBNB).transfer(owner, fee);
             require(sent, "FTF");
             emit FeeCollected(msg.sender, fee, tokenOut);
 
             // swap WBNB to USDC/USDT
-            uint256 amountOutTarget = swapWBNB2U(mode, amountOutForUser, amountOutMinimum, deadline);
-            bool sentTarget = IERC20(tokenOut).transfer(msg.sender, amountOutTarget);
-            require(sentTarget, "TRANS_AFTER_SWAP_FAILED");
-            emit SwapExecuted(msg.sender, amountIn, amountOutTarget, false, tokenOut);
+            swapBNB2U(mode, amountWBNBtoSwapAfterFee, amountOutMinimum, deadline);
 
         }
         
