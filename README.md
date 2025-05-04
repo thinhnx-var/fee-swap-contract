@@ -6,4 +6,4 @@
 - MainNet: `0x5A4aeE1E51Bc48F519488A074f9e29aC844E3Ecb` @no feeTier required
 - MainNet: `0x16C60c67888E67A85d05204BA06B87AA4ce01c43` @feeTier required
 
-- Mainnet @finest: `0xA53F02B23f90E998AF63235C66636Ae1fd66F465`
+- Mainnet @finest: `0xC9af6bc5DF9baf7664000CEdf3a197e3Ef360E4E`

@@ -20,6 +20,10 @@ interface IBep20 {
     function approve(address spender, uint256 amount) external returns (bool);
     function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
 }
+interface IBEP20Extended is IBep20 {
+    function decimals() external view returns (uint8);
+}
+
 
 contract VarMetaSwapper {
     address public owner;
@@ -414,16 +418,22 @@ contract VarMetaSwapper {
     // get pool pair and check if balance of tokenA and tokenB is over 100 tokens
     function getFeeTier(address tokenA, address tokenB) public view returns (uint24) {
         uint24[5] memory feeTiers = [FEE_TIER_500, 2500, 3000, 5000, 10000];
-        IERC20 tokenA_ = IERC20(tokenA);
-        IERC20 tokenB_ = IERC20(tokenB);
-        uint256 threshold = 100e18;
+
+        IBEP20Extended tokenA_ = IBEP20Extended(tokenA);
+        IBEP20Extended tokenB_ = IBEP20Extended(tokenB);
+
+        uint8 decimalsA = tokenA_.decimals();
+        uint8 decimalsB = tokenB_.decimals();
+
+        uint256 thresholdA = 100 * (10 ** decimalsA);
+        uint256 thresholdB = 100 * (10 ** decimalsB);
 
         for (uint256 i = 0; i < 5; ) {
             address pool = pancakeFactory.getPool(tokenA, tokenB, feeTiers[i]);
             if (pool != address(0)) {
                 uint256 balA = tokenA_.balanceOf(pool);
                 uint256 balB = tokenB_.balanceOf(pool);
-                if (balA > threshold && balB > threshold) {
+                if (balA > thresholdA && balB > thresholdB) {
                     return feeTiers[i];
                 }
             }
