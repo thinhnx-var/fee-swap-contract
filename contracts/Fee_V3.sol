@@ -12,6 +12,15 @@ interface IWBNB {
     function approve(address spender, uint256 amount) external returns (bool);
 }
 
+interface IBep20 {
+    function totalSupply() external view returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
+    function transfer(address recipient, uint256 amount) external returns (bool);
+    function allowance(address owner, address spender) external view returns (uint256);
+    function approve(address spender, uint256 amount) external returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+}
+
 contract VarMetaSwapper {
     address public owner;
     address public constant WBNB = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c; // WBNB address on BSC mainnet
@@ -183,7 +192,6 @@ contract VarMetaSwapper {
 
     // swap U2B before buying target token. After this action, contract will have WBNB
     function swapU2BNB(uint8 mode, uint256 amountIn, uint256 amountOutMinimum, uint256 deadline) internal returns (uint256) {
-        // require(tokenIn != address(0) && tokenIn != WBNB, "Invalid token address");
         address tokenIn;
         if (mode == 2) {
             tokenIn = USDC;
@@ -193,8 +201,8 @@ contract VarMetaSwapper {
             revert("Invalid mode");
         }
 
-        uint24 feeTier = FEE_TIER_500;
-
+        uint24 feeTier = getFeeTier(tokenIn, WBNB);
+        require(feeTier != 0, "No pool found");
         // Prepare swap parameters
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
             tokenIn: tokenIn, // User-specified token (token A)
@@ -219,8 +227,6 @@ contract VarMetaSwapper {
 
     // swap WBNB to USDC/USDT after buying target token. After this action, contract will have USDC/USDT
     function swapBNB2U(uint8 mode, uint256 amountIn, uint256 amountOutMinimum, uint256 deadline) internal returns (uint256) {
-        require(block.timestamp <= deadline, "Transaction deadline exceeded");
-        require(amountIn > 0, "Insufficient token amount");
         address tokenOut;
         if (mode == 3) {
             tokenOut = USDC;
@@ -232,7 +238,8 @@ contract VarMetaSwapper {
         // Approve router to spend WBNB
         TransferHelper.safeApprove(WBNB, address(PANCAKE_V3_ROUTER), amountIn);
         // get feeTier for pairs
-        uint24 feeTier = FEE_TIER_500;
+        uint24 feeTier = getFeeTier(WBNB, tokenOut);
+        require(feeTier != 0, "No pool found");
         // Prepare swap parameters
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
             tokenIn: WBNB, // WBNB for swapping
@@ -345,6 +352,7 @@ contract VarMetaSwapper {
             TransferHelper.safeApprove(WBNB, address(PANCAKE_V3_ROUTER), amountOfWBNB);
             // get fee for pairs
             uint24 feeTier = getFeeTier(WBNB, tokenIn);
+            require(feeTier != 0, "No pool found");
             // Prepare swap parameters
             params = ISwapRouter.ExactInputSingleParams({
                 tokenIn: WBNB, // User-specified token (token A)
@@ -369,7 +377,8 @@ contract VarMetaSwapper {
         // selling token to USDC/USDT. First sell to WBWB then swap to USDT/USDC
         if ( mode == 3 || mode == 5) {
             // get fee for pairs
-            uint24 feeTier = getFeeTier(tokenIn, tokenOut);
+            uint24 feeTier = getFeeTier(tokenIn, WBNB);
+            require(feeTier != 0, "No pool found");
             // Prepare swap parameters
             params = ISwapRouter.ExactInputSingleParams({
                 tokenIn: tokenIn, // User-specified token (token A)
@@ -389,7 +398,6 @@ contract VarMetaSwapper {
             uint256 fee = calculateFee(amountOut);
             uint256 amountWBNBtoSwapAfterFee = amountOut - fee;
             // Transfer fee to owner
-
             bool sent = IERC20(WBNB).transfer(owner, fee);
             require(sent, "FTF");
             emit FeeCollected(msg.sender, fee, tokenOut);
@@ -401,16 +409,20 @@ contract VarMetaSwapper {
         
     }
 
-    // get pool pair
+    // get pool pair and check if balance of tokenA and tokenB is over 100 tokens
     function getFeeTier(address tokenA, address tokenB) public view returns (uint24) {
-        uint24[3] memory feeTiers = [FEE_TIER_2500, FEE_TIER_3000, FEE_TIER_10000];
-
+        uint24[4] memory feeTiers = [FEE_TIER_500, FEE_TIER_2500, FEE_TIER_3000, FEE_TIER_10000];
+        address poolAddr;
         for (uint256 i = 0; i < feeTiers.length; ++i) {
-            if (pancakeFactory.getPool(tokenA, tokenB, feeTiers[i]) != address(0)) {
-                return feeTiers[i];
+            poolAddr = pancakeFactory.getPool(tokenA, tokenB, feeTiers[i]);
+            if (poolAddr != address(0)) {
+                uint256 balA = IBep20(tokenA).balanceOf(poolAddr);
+                uint256 balB = IBep20(tokenB).balanceOf(poolAddr);
+                if (balA > 100000000000000000000 && balB > 100000000000000000000) {
+                    return feeTiers[i];
+                }
             }
         }
-
         return 0; // No pool found
     }
 
