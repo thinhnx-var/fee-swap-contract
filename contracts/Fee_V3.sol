@@ -40,9 +40,10 @@ contract VarMetaSwapper {
 
     // Constants to reduce gas usage
     uint24 private constant FEE_TIER_500 = 500;
-    uint24 private constant FEE_TIER_2500 = 2500;
-    uint24 private constant FEE_TIER_3000 = 3000;
-    uint24 private constant FEE_TIER_10000 = 10000;
+    // uint24 private constant FEE_TIER_2500 = 2500;
+    // uint24 private constant FEE_TIER_3000 = 3000;
+    // uint24 private constant FEE_TIER_5000 = 5000;
+    // uint24 private constant FEE_TIER_10000 = 10000;
 
     event SwapExecuted(address indexed user, uint256 amountIn, uint256 amountOut, bool isBNBToToken, address tokenAddress);
     event FeeCollected(address indexed user, uint256 feeAmount, address tokenAddress);
@@ -128,6 +129,7 @@ contract VarMetaSwapper {
         emit FeeCollected(msg.sender, fee, address(0));
             
         uint24 feeTier = getFeeTier(WBNB, tokenOut);
+        require(feeTier != 0, "No pool found");
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
             tokenIn: WBNB,
             tokenOut: tokenOut,
@@ -351,7 +353,7 @@ contract VarMetaSwapper {
             wbnb_router.deposit{value: amountOfWBNB}();
             TransferHelper.safeApprove(WBNB, address(PANCAKE_V3_ROUTER), amountOfWBNB);
             // get fee for pairs
-            uint24 feeTier = getFeeTier(WBNB, tokenIn);
+            uint24 feeTier = getFeeTier(WBNB, tokenOut);
             require(feeTier != 0, "No pool found");
             // Prepare swap parameters
             params = ISwapRouter.ExactInputSingleParams({
@@ -411,20 +413,26 @@ contract VarMetaSwapper {
 
     // get pool pair and check if balance of tokenA and tokenB is over 100 tokens
     function getFeeTier(address tokenA, address tokenB) public view returns (uint24) {
-        uint24[4] memory feeTiers = [FEE_TIER_500, FEE_TIER_2500, FEE_TIER_3000, FEE_TIER_10000];
-        address poolAddr;
-        for (uint256 i = 0; i < feeTiers.length; ++i) {
-            poolAddr = pancakeFactory.getPool(tokenA, tokenB, feeTiers[i]);
-            if (poolAddr != address(0)) {
-                uint256 balA = IBep20(tokenA).balanceOf(poolAddr);
-                uint256 balB = IBep20(tokenB).balanceOf(poolAddr);
-                if (balA > 100000000000000000000 && balB > 100000000000000000000) {
+        uint24[5] memory feeTiers = [FEE_TIER_500, 2500, 3000, 5000, 10000];
+        IERC20 tokenA_ = IERC20(tokenA);
+        IERC20 tokenB_ = IERC20(tokenB);
+        uint256 threshold = 100e18;
+
+        for (uint256 i = 0; i < 5; ) {
+            address pool = pancakeFactory.getPool(tokenA, tokenB, feeTiers[i]);
+            if (pool != address(0)) {
+                uint256 balA = tokenA_.balanceOf(pool);
+                uint256 balB = tokenB_.balanceOf(pool);
+                if (balA > threshold && balB > threshold) {
                     return feeTiers[i];
                 }
             }
+            unchecked { ++i; }
         }
-        return 0; // No pool found
+
+        return 0;
     }
+
 
     // Calculate BNB fee based on amount
     function calculateFee(uint256 amount) private view returns (uint256) {
