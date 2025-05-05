@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@pancakeswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import '@pancakeswap/v3-periphery/contracts/libraries/TransferHelper.sol';
 import '@pancakeswap/v3-core/contracts/interfaces/IPancakeV3Factory.sol';
+import '@pancakeswap/v3-core/contracts/interfaces/IPancakeV3Pool.sol';
 
 interface IWBNB {
     function deposit() external payable;
@@ -41,6 +42,7 @@ contract VarMetaSwapper {
 
     ISwapRouter public pancakeRouter;
     IPancakeV3Factory public pancakeFactory;
+    uint256 public amountMinumWBNB;
 
     // Constants to reduce gas usage
     uint24 private constant FEE_TIER_500 = 500;
@@ -67,6 +69,7 @@ contract VarMetaSwapper {
         PAN_V3_FACTORY = _pancakeFactory;
         pancakeFactory = IPancakeV3Factory(PAN_V3_FACTORY);
         wbnb_router = IWBNB(WBNB);
+        amountMinumWBNB = 1;
         
     }
 
@@ -418,22 +421,19 @@ contract VarMetaSwapper {
     // get pool pair and check if balance of tokenA and tokenB is over 100 tokens
     function getFeeTier(address tokenA, address tokenB) public view returns (uint24) {
         uint24[5] memory feeTiers = [FEE_TIER_500, 2500, 3000, 5000, 10000];
+        IBEP20Extended tokenWBNB;
+        uint256 thresholdWBNB = amountMinumWBNB * 1e18;
 
-        IBEP20Extended tokenA_ = IBEP20Extended(tokenA);
-        IBEP20Extended tokenB_ = IBEP20Extended(tokenB);
-
-        uint8 decimalsA = tokenA_.decimals();
-        uint8 decimalsB = tokenB_.decimals();
-
-        uint256 thresholdA = 100 * (10 ** decimalsA);
-        uint256 thresholdB = 100 * (10 ** decimalsB);
-
-        for (uint256 i = 0; i < 5; ) {
+        for (uint256 i = 0; i < feeTiers.length; ) {
             address pool = pancakeFactory.getPool(tokenA, tokenB, feeTiers[i]);
             if (pool != address(0)) {
-                uint256 balA = tokenA_.balanceOf(pool);
-                uint256 balB = tokenB_.balanceOf(pool);
-                if (balA > thresholdA && balB > thresholdB) {
+                if (tokenA == WBNB) {
+                    tokenWBNB = IBEP20Extended(tokenA);
+                } else {
+                    tokenWBNB = IBEP20Extended(tokenB);
+                }
+                uint256 balWBNB = tokenWBNB.balanceOf(pool);
+                if (balWBNB >= thresholdWBNB) {
                     return feeTiers[i];
                 }
             }
@@ -447,6 +447,23 @@ contract VarMetaSwapper {
     // Calculate BNB fee based on amount
     function calculateFee(uint256 amount) private view returns (uint256) {
         return (amount * platformFeeBasisPoints) / 10000; // Convert basis points to percentage
+    }
+
+    // Returns price of token1 per token0, scaled to 1e18
+    function getPriceFromSqrtPriceX96(uint160 sqrtPriceX96) public pure returns (uint256 price) {
+        uint256 ratioX192 = uint256(sqrtPriceX96) * uint256(sqrtPriceX96);
+        // Convert from Q192 (2^96 * 2^96) to 1e18 ~ wei
+        price = (ratioX192 * 1e18) >> 192;
+    }
+    function getPriceFromSlot0(address poolAddress) public view returns (uint256 price) {
+        IPancakeV3Pool pancakePool = IPancakeV3Pool(poolAddress);
+        (uint160 sqrtPriceX96,,,,,,) = pancakePool.slot0();
+        price = getPriceFromSqrtPriceX96(sqrtPriceX96);
+    }
+
+    // set the threshold for liquidity amount in USD
+    function setAmountMinimumWBNB(uint256 threshold) external onlyOwner {
+        amountMinumWBNB = threshold;
     }
 
     // Function to update fee settings (only owner)

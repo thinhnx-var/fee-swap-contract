@@ -19,6 +19,9 @@ module.exports = {
 	settings: {
 		evmVersion: "istanbul",
 	},
+	sourcify: {
+		enabled: true
+	},
 	networks: {
 		bsctest: {
 			url: "https://bsc-testnet.bnbchain.org",
