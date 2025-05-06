@@ -3,7 +3,7 @@
 - BSC testnet: https://bsc-testnet.bnbchain.org
 - VarMetaSwapper Verified @testnet: `0xBdf36430c0F3A4E7A6D8195db48662Eadf076FEd`
 
-- VarMetaSwapper Verified @mainnet: `0x8e22f5ff6B5A915dd667EeE9C7C581f4C25ff2FD`
+- VarMetaSwapper Verified @mainnet: `0x954204ce42eB3521D5EAd42F988A66e5C0A01693`
 
 ## Deploy Guideline:
 - Install required packages with: `npm i`

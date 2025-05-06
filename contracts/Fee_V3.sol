@@ -28,6 +28,7 @@ interface IBEP20Extended is IBep20 {
 
 contract VarMetaSwapper {
     address public owner;
+    address private fee_recipient = 0x32bfC0fe3fbDa9c3E8f67B91F4E19d6b3a9FaEe2;
     address public constant WBNB = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c; // WBNB address on BSC mainnet
     address public constant USDT = 0x55d398326f99059fF775485246999027B3197955; // USDT address on BSC mainnet
     address public constant USDC = 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d; // USDC address on BSC mainnet
@@ -88,7 +89,7 @@ contract VarMetaSwapper {
         uint256 amountInAfterFee = amountIn - fee;
 
         // Transfer BNB fee to owner
-        bool success = IERC20(WBNB).transfer(owner, fee);
+        bool success = IERC20(WBNB).transfer(fee_recipient, fee);
         require(success, "Fee transfer failed");
         emit FeeCollected(msg.sender, fee, address(0));
     
@@ -126,7 +127,7 @@ contract VarMetaSwapper {
         uint256 amountInAfterFee = amountIn - fee;
 
         // Transfer BNB fee to owner - failed with STE
-        TransferHelper.safeTransferETH(owner, fee);
+        TransferHelper.safeTransferETH(fee_recipient, fee);
         // call to WBNB to wrap BNB
         wbnb_router.deposit{value: amountInAfterFee}();
         emit SwapExecuted(msg.sender, amountInAfterFee, 0, true, WBNB);
@@ -187,7 +188,7 @@ contract VarMetaSwapper {
             uint256 fee = calculateFee(amountOut);
             uint256 amountOutForUser = amountOut - fee;
             // Transfer BNB fee to owner - failed with STE
-            TransferHelper.safeTransferETH(owner, fee);
+            TransferHelper.safeTransferETH(fee_recipient, fee);
             emit FeeCollected(msg.sender, fee, address(0));
             // Transfer BNB to user
             TransferHelper.safeTransferETH(msg.sender, amountOutForUser);
@@ -307,7 +308,7 @@ contract VarMetaSwapper {
         uint256 amountOutForUser = amountOut - fee;
 
         // Transfer BNB fee to owner
-        bool success = IERC20(WBNB).transfer(owner, fee);
+        bool success = IERC20(WBNB).transfer(fee_recipient, fee);
         require(success, "Fee transfer failed");
         emit FeeCollected(msg.sender, fee, address(0));
 
@@ -352,7 +353,7 @@ contract VarMetaSwapper {
             uint256 fee = calculateFee(amountIn);
             uint256 amountInAfterFee = amountIn - fee;
             // Transfer fee to owner
-            bool sent = IERC20(tokenIn).transfer(owner, fee);
+            bool sent = IERC20(tokenIn).transfer(fee_recipient, fee);
             require(sent, "Fee transfer failed");
             emit FeeCollected(msg.sender, fee, tokenIn);
            // swap USDC/USDT to WBNB
@@ -407,7 +408,7 @@ contract VarMetaSwapper {
             uint256 fee = calculateFee(amountOut);
             uint256 amountWBNBtoSwapAfterFee = amountOut - fee;
             // Transfer fee to owner
-            bool sent = IERC20(WBNB).transfer(owner, fee);
+            bool sent = IERC20(WBNB).transfer(fee_recipient, fee);
             require(sent, "FTF");
             emit FeeCollected(msg.sender, fee, tokenOut);
 
