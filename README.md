@@ -1,9 +1,16 @@
 # VarMeta Fee MiddleWare Contract
 ## Info:
 - BSC testnet: https://bsc-testnet.bnbchain.org
-- pancake v3 router @testnet: `0x1b81D678ffb9C0263b24A97847620C99d213eB14`
-- VarMetaSwapper @testnet: `0x0C2951C202798dce82e9ff7C574E5B1117FaB37E`
-- MainNet: `0x5A4aeE1E51Bc48F519488A074f9e29aC844E3Ecb` @no feeTier required
-- MainNet: `0x16C60c67888E67A85d05204BA06B87AA4ce01c43` @feeTier required
+- VarMetaSwapper Verified @testnet: `0xBdf36430c0F3A4E7A6D8195db48662Eadf076FEd`
 
-- Mainnet @finest: `0x8e22f5ff6B5A915dd667EeE9C7C581f4C25ff2FD`
+- VarMetaSwapper Verified @mainnet: `0x8e22f5ff6B5A915dd667EeE9C7C581f4C25ff2FD`
+
+## Deploy Guideline:
+- Install required packages with: `npm i`
+- `cp .env.example .env`
+- Edit the `.env` file with following details:
+    - Replace private key in `PRVKEY`
+    - Recheck addresses of router and factory
+    - If you want to verify the contract / show the contract's code on bsc scan, you need to provide the `API_KEY` of bsc scan. Simplest way is getting at: [BSC Dashboard](https://bscscan.com/apidashboard)
+- Deploy command: `npx hardhat run scripts/deploy_v3.js --network mainnet`
+- Verify command: `npx hardhat verify --network mainnet {Contract_Address} {Args1} {Args2} {Args3}`. Which Args1 is Pancake V3 Router, Args2 is Pancake V3 Factory, Args3 is FeePercentage.
