@@ -3,14 +3,12 @@ const { ethers } = require("hardhat");
 async function main() {
   try {
     const [deployer] = await ethers.getSigners();
-    const _pancakeRouter = process.env.PAN_V3_ROUTER;
-    const _initialFeeBasisPoints = process.env.FEE_PERCENTAGE;
-    const _pancakeFactory = process.env.PAN_V3_FACTORY;
+    const routerV2Address = process.env.PAN_V2;
     console.log("Deploying contracts with the account:", deployer.address);
-    const FeeMdw = await ethers.getContractFactory("VarMetaSwapper");
-    const ct = await FeeMdw.deploy(_pancakeRouter, _pancakeFactory, _initialFeeBasisPoints);
+    const FeeMdw = await ethers.getContractFactory("Swapper");
+    const ct = await FeeMdw.deploy(routerV2Address);
     await ct.waitForDeployment();
-    console.log("VarMetaSwapper deployed to:", ct.target);
+    console.log("Swapper deployed to:", ct.target);
 
   } catch (error) {
     console.error("Error deploying contract:", error);
